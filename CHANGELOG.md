@@ -2,6 +2,17 @@
 
 All notable changes to DockerVulnManager.
 
+### acf224e - 2026-04-07
+
+**fix: Docker security hardening - pin versions, add resource limits, read-only FS, drop capabilities**
+
+Files changed (2):
+- Dockerfile
+- docker-compose.yml
+---
+
+
+
 ### af1fa69 - 2026-04-07
 
 **fix: remediate all project vulnerabilities + add backend API + Docker setup**

@@ -9,9 +9,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount Docker socket to scan local containers
+      # Docker socket read-only (required for container scanning)
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Persist database
+      # Persistent data
       - vuln-data:/app/data
     environment:
       - DB_PATH=/app/data/vulns.db
@@ -19,14 +19,38 @@ services:
       - SCANNER_TIMEOUT=300
       - SCANNER_CACHE_ENABLED=true
     restart: unless-stopped
+    # Security hardening
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /app/data:noexec,nosuid,size=500m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Optional: Run tests in a separate container
   tests:
     build:
       context: .
@@ -37,6 +61,13 @@ services:
     environment:
       - DB_PATH=/tmp/test.db
     command: pytest tests/ -v --cov=src
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     profiles:
       - test
 
