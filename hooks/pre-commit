@@ -2,7 +2,7 @@
 
 # ==========================================
 # DockerVulnManager - Pre-commit Security Hook
-# Scans staged files for security issues
+# Comprehensive file and security validation
 # ==========================================
 
 set -e
@@ -27,10 +27,91 @@ if [ -z "$STAGED_FILES" ]; then
 fi
 
 # ==========================================
-# 1. CREDENTIAL DETECTION
+# 1. FILE TYPE VALIDATION
 # ==========================================
 echo ""
-echo "[1/7] Checking for credentials and secrets..."
+echo "[1/9] Checking file types..."
+
+ALLOWED_EXTENSIONS=(
+    ".py" ".md" ".txt" ".toml" ".yaml" ".yml" ".json"
+    ".sh" ".bash" ".cfg" ".ini" ".env.example"
+    ".dockerignore" ".gitignore" ".gitattributes"
+    "Dockerfile" "Dockerfile.*" "docker-compose*"
+    ".html" ".css" ".js" ".ts"
+    ".sql" ".db.example"
+    "LICENSE" "Makefile" ".pre-commit-config.yaml"
+)
+
+BINARY_EXTENSIONS=(
+    ".exe" ".dll" ".so" ".dylib" ".pyc" ".pyo"
+    ".png" ".jpg" ".jpeg" ".gif" ".bmp" ".ico"
+    ".zip" ".tar" ".gz" ".rar" ".7z"
+    ".pdf" ".doc" ".docx" ".xls" ".xlsx"
+    ".mp3" ".mp4" ".avi" ".mov"
+    ".woff" ".woff2" ".ttf" ".eot"
+    ".pkl" ".pickle" ".joblib"
+    ".bin" ".dat" ".model" ".pt" ".pth"
+    ".db" ".sqlite" ".sqlite3"
+)
+
+for file in $STAGED_FILES; do
+    # Skip shell scripts and hooks (they may be detected as executable)
+    BASENAME_FILE=$(basename "$file")
+    if [[ "$file" == *.sh ]] || [[ "$BASENAME_FILE" == pre-commit ]] || [[ "$file" == .git/hooks/* ]]; then
+        continue
+    fi
+
+    # Check if file is binary (only block actual binary/data files)
+    FILE_TYPE=$(file "$file" 2>/dev/null || echo "")
+    if echo "$FILE_TYPE" | grep -qE "ELF |executable,|binary|data$"; then
+        echo -e "${RED}Binary file detected: $file${NC}"
+        ERRORS_FOUND=$((ERRORS_FOUND + 1))
+    fi
+
+    # Check against blocked extensions
+    for ext in "${BINARY_EXTENSIONS[@]}"; do
+        if [[ "$file" == *"$ext" ]]; then
+            echo -e "${RED}Blocked file type: $file ($ext)${NC}"
+            ERRORS_FOUND=$((ERRORS_FOUND + 1))
+        fi
+    done
+done
+
+if [ $ERRORS_FOUND -eq 0 ]; then
+    echo -e "${GREEN}All file types allowed${NC}"
+fi
+
+# ==========================================
+# 2. FILE SIZE CHECK
+# ==========================================
+echo ""
+echo "[2/9] Checking file sizes..."
+
+MAX_FILE_SIZE=524288  # 512KB
+LARGE_FILES=0
+
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        SIZE=$(wc -c < "$file")
+        if [ "$SIZE" -gt "$MAX_FILE_SIZE" ]; then
+            SIZE_KB=$((SIZE / 1024))
+            echo -e "${RED}Large file: $file (${SIZE_KB}KB > 512KB limit)${NC}"
+            LARGE_FILES=$((LARGE_FILES + 1))
+        fi
+    fi
+done
+
+if [ $LARGE_FILES -eq 0 ]; then
+    echo -e "${GREEN}All files under 512KB${NC}"
+else
+    ERRORS_FOUND=$((ERRORS_FOUND + LARGE_FILES))
+fi
+
+# ==========================================
+# 3. CREDENTIAL DETECTION
+# ==========================================
+echo ""
+echo "[3/9] Checking for credentials and secrets..."
 
 CREDENTIAL_PATTERNS=(
     "AKIA[0-9A-Z]{16}"
@@ -42,30 +123,35 @@ CREDENTIAL_PATTERNS=(
     "(mongodb|postgres|mysql|redis|amqp)://[^:]+:[^@]+@"
     "secret['\"]?\\s*[:=]\\s*['\"][A-Za-z0-9+/]{40,}={0,2}"
     "xox[baprs]-[0-9]{10,}"
+    "sk-[A-Za-z0-9]{40,}"
+    "ghp_[A-Za-z0-9]{36}"
 )
 
+CRED_ERRORS=0
 for file in $STAGED_FILES; do
-    if [[ "$file" == *.md ]] || [[ "$file" == *.lock ]] || [[ "$file" == *.txt ]]; then
+    if [[ "$file" == *.md ]] || [[ "$file" == *.txt ]] || [[ "$file" == *.json ]]; then
         continue
     fi
 
     for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
         if git diff --cached -- "$file" | grep -qP "$pattern" 2>/dev/null; then
-            echo -e "${RED}Possible credential found in $file${NC}"
-            ERRORS_FOUND=$((ERRORS_FOUND + 1))
+            echo -e "${RED}Credential found in $file${NC}"
+            CRED_ERRORS=$((CRED_ERRORS + 1))
         fi
     done
 done
 
-if [ $ERRORS_FOUND -eq 0 ]; then
+if [ $CRED_ERRORS -eq 0 ]; then
     echo -e "${GREEN}No credentials detected${NC}"
+else
+    ERRORS_FOUND=$((ERRORS_FOUND + CRED_ERRORS))
 fi
 
 # ==========================================
-# 2. IP ADDRESS DETECTION
+# 4. IP ADDRESS DETECTION
 # ==========================================
 echo ""
-echo "[2/7] Checking for hardcoded IP addresses..."
+echo "[4/9] Checking for hardcoded IP addresses..."
 
 IP_WARNINGS=0
 for file in $STAGED_FILES; do
@@ -73,9 +159,13 @@ for file in $STAGED_FILES; do
         continue
     fi
 
+    if [[ "$file" != *.py ]]; then
+        continue
+    fi
+
     IPS=$(git diff --cached -- "$file" | grep -oP '(?:\d{1,3}\.){3}\d{1,3}' 2>/dev/null | grep -vE '^(127\.0\.0\.1|0\.0\.0\.0|255\.255\.255\.255|8\.8\.8\.8|1\.1\.1\.1)$' || true)
     if [ -n "$IPS" ]; then
-        echo -e "${YELLOW}Possible hardcoded IP in $file: $IPS${NC}"
+        echo -e "${YELLOW}Hardcoded IP in $file: $IPS${NC}"
         IP_WARNINGS=$((IP_WARNINGS + 1))
     fi
 done
@@ -87,10 +177,10 @@ else
 fi
 
 # ==========================================
-# 3. RELATIVE PATH DETECTION
+# 5. RELATIVE PATH DETECTION
 # ==========================================
 echo ""
-echo "[3/7] Checking for unsafe relative paths..."
+echo "[5/9] Checking for unsafe relative paths..."
 
 PATH_ERRORS=0
 for file in $STAGED_FILES; do
@@ -98,54 +188,37 @@ for file in $STAGED_FILES; do
         continue
     fi
 
+    # Check for directory traversal
     if git diff --cached -- "$file" | grep -qP '\.\./.*\.\./' 2>/dev/null; then
-        echo -e "${RED}Directory traversal pattern in $file${NC}"
+        echo -e "${RED}Directory traversal in $file${NC}"
+        PATH_ERRORS=$((PATH_ERRORS + 1))
+    fi
+
+    # Check for hardcoded user paths
+    if git diff --cached -- "$file" | grep -qP '/home/[a-zA-Z0-9_]+/' 2>/dev/null; then
+        echo -e "${RED}Hardcoded user path in $file${NC}"
         PATH_ERRORS=$((PATH_ERRORS + 1))
     fi
 done
 
 if [ $PATH_ERRORS -eq 0 ]; then
-    echo -e "${GREEN}No unsafe relative paths detected${NC}"
+    echo -e "${GREEN}No unsafe paths detected${NC}"
 else
     ERRORS_FOUND=$((ERRORS_FOUND + PATH_ERRORS))
 fi
 
 # ==========================================
-# 4. LARGE FILE CHECK
+# 6. SENSITIVE FILE DETECTION
 # ==========================================
 echo ""
-echo "[4/7] Checking for large files..."
-
-LARGE_FILES=0
-for file in $STAGED_FILES; do
-    if [ -f "$file" ]; then
-        SIZE=$(wc -c < "$file")
-        if [ "$SIZE" -gt 1048576 ]; then
-            SIZE_MB=$((SIZE / 1024 / 1024))
-            echo -e "${RED}Large file: $file (${SIZE_MB}MB)${NC}"
-            LARGE_FILES=$((LARGE_FILES + 1))
-        fi
-    fi
-done
-
-if [ $LARGE_FILES -eq 0 ]; then
-    echo -e "${GREEN}No large files detected${NC}"
-else
-    ERRORS_FOUND=$((ERRORS_FOUND + LARGE_FILES))
-fi
-
-# ==========================================
-# 5. SENSITIVE FILE DETECTION
-# ==========================================
-echo ""
-echo "[5/7] Checking for sensitive files..."
+echo "[6/9] Checking for sensitive files..."
 
 SENSITIVE_FOUND=0
 for file in $STAGED_FILES; do
     BASENAME=$(basename "$file")
     case "$BASENAME" in
-        *.pem|*.key|*.p12|*.pfx|*.jks|.env|.env.local|.env.production|*.keystore|id_rsa|id_dsa)
-            echo -e "${RED}Sensitive file: $file${NC}"
+        *.pem|*.key|*.p12|*.pfx|*.jks|.env|.env.local|.env.production|*.keystore|id_rsa|id_dsa|*.pfx)
+            echo -e "${RED}Sensitive file blocked: $file${NC}"
             SENSITIVE_FOUND=$((SENSITIVE_FOUND + 1))
             ;;
     esac
@@ -158,10 +231,10 @@ else
 fi
 
 # ==========================================
-# 6. PYTHON BEST PRACTICES
+# 7. PYTHON BEST PRACTICES
 # ==========================================
 echo ""
-echo "[6/7] Checking Python best practices..."
+echo "[7/9] Checking Python best practices..."
 
 PYTHON_WARNINGS=0
 for file in $STAGED_FILES; do
@@ -169,19 +242,32 @@ for file in $STAGED_FILES; do
         continue
     fi
 
-    if git diff --cached -- "$file" | grep -qP '\beval\\s*\\(' 2>/dev/null; then
+    # Check for dangerous patterns
+    if git diff --cached -- "$file" | grep -qP '\bimport\s+pickle\b' 2>/dev/null; then
+        echo -e "${YELLOW}pickle import in $file (security risk)${NC}"
+        PYTHON_WARNINGS=$((PYTHON_WARNINGS + 1))
+    fi
+
+    if git diff --cached -- "$file" | grep -qP '\bimport\s+marshal\b' 2>/dev/null; then
+        echo -e "${YELLOW}marshal import in $file (security risk)${NC}"
+        PYTHON_WARNINGS=$((PYTHON_WARNINGS + 1))
+    fi
+
+    # Check for eval/exec
+    if git diff --cached -- "$file" | grep -qP '\beval\s*\(' 2>/dev/null; then
         echo -e "${YELLOW}eval() usage in $file${NC}"
         PYTHON_WARNINGS=$((PYTHON_WARNINGS + 1))
     fi
 
-    if git diff --cached -- "$file" | grep -qP '\bexec\\s*\\(' 2>/dev/null; then
+    if git diff --cached -- "$file" | grep -qP '\bexec\s*\(' 2>/dev/null; then
         echo -e "${YELLOW}exec() usage in $file${NC}"
         PYTHON_WARNINGS=$((PYTHON_WARNINGS + 1))
     fi
 
-    if git diff --cached -- "$file" | grep -qP 'pickle\\.(load|loads)' 2>/dev/null; then
-        echo -e "${YELLOW}pickle usage in $file${NC}"
-        PYTHON_WARNINGS=$((PYTHON_WARNINGS + 1))
+    # Check for hardcoded passwords
+    if git diff --cached -- "$file" | grep -qiP 'password\s*=\s*.{4,}' 2>/dev/null; then
+        echo -e "${RED}Hardcoded password in $file${NC}"
+        ERRORS_FOUND=$((ERRORS_FOUND + 1))
     fi
 done
 
@@ -192,10 +278,10 @@ else
 fi
 
 # ==========================================
-# 7. YAML/JSON VALIDATION
+# 8. YAML/JSON VALIDATION
 # ==========================================
 echo ""
-echo "[7/7] Validating configuration files..."
+echo "[8/9] Validating configuration files..."
 
 CONFIG_ERRORS=0
 for file in $STAGED_FILES; do
@@ -216,6 +302,16 @@ for file in $STAGED_FILES; do
             fi
         fi
     fi
+
+    # TOML validation
+    if [[ "$file" == *.toml ]]; then
+        if command -v python3 >/dev/null 2>&1; then
+            if ! python3 -c "import tomllib; tomllib.load(open('$file', 'rb'))" 2>/dev/null; then
+                echo -e "${RED}Invalid TOML: $file${NC}"
+                CONFIG_ERRORS=$((CONFIG_ERRORS + 1))
+            fi
+        fi
+    fi
 done
 
 if [ $CONFIG_ERRORS -eq 0 ]; then
@@ -225,10 +321,42 @@ else
 fi
 
 # ==========================================
+# 9. LINE ENDINGS AND ENCODING
+# ==========================================
+echo ""
+echo "[9/9] Checking file encoding..."
+
+ENCODING_ERRORS=0
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        # Check for non-UTF8 files (excluding binary)
+        if [[ "$file" == *.py ]] || [[ "$file" == *.md ]] || [[ "$file" == *.txt ]] || [[ "$file" == *.json ]] || [[ "$file" == *.yaml ]] || [[ "$file" == *.yml ]] || [[ "$file" == *.toml ]]; then
+            if ! iconv -f UTF-8 -t UTF-8 "$file" >/dev/null 2>&1; then
+                echo -e "${RED}Non-UTF8 encoding: $file${NC}"
+                ENCODING_ERRORS=$((ENCODING_ERRORS + 1))
+            fi
+
+            # Check for CRLF line endings
+            if grep -qP '\r\n' "$file" 2>/dev/null; then
+                echo -e "${YELLOW}CRLF line endings: $file (consider LF)${NC}"
+                WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            fi
+        fi
+    fi
+done
+
+if [ $ENCODING_ERRORS -eq 0 ]; then
+    echo -e "${GREEN}All files UTF-8 encoded${NC}"
+else
+    ERRORS_FOUND=$((ERRORS_FOUND + ENCODING_ERRORS))
+fi
+
+# ==========================================
 # SUMMARY
 # ==========================================
 echo ""
 echo "========================================"
+echo -e "Files checked: ${#STAGED_FILES[@]}"
 if [ $ERRORS_FOUND -gt 0 ]; then
     echo -e "${RED}COMMIT BLOCKED: $ERRORS_FOUND error(s) found${NC}"
     echo -e "$WARNINGS_FOUND warning(s)"
@@ -236,6 +364,8 @@ if [ $ERRORS_FOUND -gt 0 ]; then
     exit 1
 else
     echo -e "${GREEN}All security checks passed!${NC}"
-    echo -e "$WARNINGS_FOUND warning(s) (non-blocking)"
+    if [ $WARNINGS_FOUND -gt 0 ]; then
+        echo -e "$WARNINGS_FOUND warning(s) (non-blocking)"
+    fi
     exit 0
 fi
