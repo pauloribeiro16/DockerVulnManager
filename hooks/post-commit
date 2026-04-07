@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# ==========================================
+# DockerVulnManager - Post-commit Auto-Log Hook
+# Automatically updates CHANGELOG.md and STATUS.md
+# ==========================================
+
+# Prevent infinite loop from commit --amend
+if [ -f /tmp/dockervuln-post-commit-lock ]; then
+    exit 0
+fi
+touch /tmp/dockervuln-post-commit-lock
+
+# Get commit info
+COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+COMMIT_HASH=$(git log -1 --pretty=%h)
+COMMIT_DATE=$(date +%Y-%m-%d)
+COMMIT_AUTHOR=$(git config user.name)
+FILES_CHANGED=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -vE 'STATUS\.md|CHANGELOG\.md' || true)
+FILES_COUNT=$(echo "$FILES_CHANGED" | grep -c '.' 2>/dev/null || echo "0")
+
+# ==========================================
+# Update CHANGELOG.md
+# ==========================================
+if [ -f "CHANGELOG.md" ] && [ -n "$FILES_CHANGED" ]; then
+    # Build file list
+    FILE_LIST=""
+    while IFS= read -r f; do
+        [ -n "$f" ] && FILE_LIST="${FILE_LIST}- ${f}\n"
+    done <<< "$FILES_CHANGED"
+
+    # Create temp entry
+    TEMP_ENTRY="### ${COMMIT_HASH} - ${COMMIT_DATE}
+
+**${COMMIT_MSG}**
+
+Files changed (${FILES_COUNT}):
+$(echo -e "$FILE_LIST")
+---
+
+"
+
+    # Insert after the header line
+    {
+        head -3 CHANGELOG.md
+        echo ""
+        echo "$TEMP_ENTRY"
+        tail -n +4 CHANGELOG.md
+    } > CHANGELOG.md.tmp
+
+    mv CHANGELOG.md.tmp CHANGELOG.md
+
+    git add CHANGELOG.md
+    git commit --amend --no-edit --no-verify 2>/dev/null || true
+fi
+
+# ==========================================
+# Update STATUS.md
+# ==========================================
+if [ -f "STATUS.md" ]; then
+    TOTAL_FILES=$(git ls-files | wc -l | tr -d ' ')
+    PY_FILES=$(git ls-files '*.py' | wc -l | tr -d ' ')
+    TS_FILES=$(git ls-files '*.tsx' '*.ts' | wc -l | tr -d ' ')
+    TOTAL_LINES=$(git ls-files '*.py' '*.tsx' '*.ts' | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+    LAST_UPDATED=$(date +%Y-%m-%d)
+
+    sed -i "s/Last Updated: .*/Last Updated: ${LAST_UPDATED}/" STATUS.md
+
+    if grep -q "Total files" STATUS.md; then
+        sed -i "s/| Total files | .*/| Total files | ${TOTAL_FILES} |/" STATUS.md
+        sed -i "s/| Python files | .*/| Python files | ${PY_FILES} |/" STATUS.md
+        sed -i "s/| TypeScript files | .*/| TypeScript files | ${TS_FILES} |/" STATUS.md
+        sed -i "s/| Lines of code | .*/| Lines of code | ~${TOTAL_LINES} |/" STATUS.md
+    fi
+
+    git add STATUS.md
+    git commit --amend --no-edit --no-verify 2>/dev/null || true
+fi
+
+# Clean up lock
+rm -f /tmp/dockervuln-post-commit-lock

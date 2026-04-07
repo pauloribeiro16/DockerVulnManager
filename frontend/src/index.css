@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Severity colors */
+  --color-critical: hsl(0 84% 60%);
+  --color-high: hsl(25 95% 53%);
+  --color-medium: hsl(45 93% 47%);
+  --color-low: hsl(187 71% 49%);
+  --color-info: hsl(215 14% 34%);
+
+  /* Risk thresholds */
+  --color-risk-safe: hsl(142 76% 36%);
+  --color-risk-warning: hsl(38 92% 50%);
+  --color-risk-danger: hsl(0 84% 60%);
+
+  /* Dashboard theme */
+  --color-sidebar-bg: hsl(222 47% 11%);
+  --color-sidebar-text: hsl(0 0% 98%);
+  --color-sidebar-active: hsl(217 91% 60%);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(0 0% 95%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 70%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 55%);
+}

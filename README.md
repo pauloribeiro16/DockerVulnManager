@@ -52,7 +52,7 @@ docker --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/DockerVulnManager.git
+git clone https://github.com/pauloribeiro16/DockerVulnManager.git
 cd DockerVulnManager
 
 # Install using shared virtual environment
@@ -206,25 +206,6 @@ mypy src/
 # Code formatting
 black src/
 ```
-
-### Project Structure
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed architecture and roadmap.
-
----
-
-## 🛡️ Security Phases
-
-This project is being built in phases:
-
-- ✅ **Phase 1**: Project Setup & Core Architecture
-- 🔄 **Phase 2**: Docker Image Scanner (In Progress)
-- 📋 **Phase 3**: Vulnerability Analysis Engine
-- 📋 **Phase 4**: Report Generation System
-- 📋 **Phase 5**: CLI Interface Development
-- 📋 **Phase 6**: Testing & Quality Assurance
-- 📋 **Phase 7**: Packaging & Distribution
-- 📋 **Phase 8**: Documentation & Examples
-- 📋 **Phase 9**: Docker Security Hardening & Resilience
 
 ---
 
