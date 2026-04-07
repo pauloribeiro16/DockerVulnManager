@@ -1,7 +1,18 @@
+import { useState } from 'react'
 import { Bell, Search } from 'lucide-react'
 import { Button } from '../ui/button'
+import { sanitizeSearchQuery } from '../../lib/security'
 
 export function TopBar({ title, children }: { title: string; children?: React.ReactNode }) {
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const handleSearch = (value: string) => {
+    const sanitized = sanitizeSearchQuery(value)
+    setSearchQuery(sanitized)
+    // TODO: Implement global search with sanitized query
+    console.log('Search:', sanitized)
+  }
+
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -16,6 +27,9 @@ export function TopBar({ title, children }: { title: string; children?: React.Re
             <input
               type="text"
               placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              maxLength={200}
               className="pl-9 pr-4 py-2 w-64 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sidebar-active focus:border-transparent"
             />
           </div>

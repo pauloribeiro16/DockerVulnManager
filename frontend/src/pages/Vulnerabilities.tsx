@@ -6,6 +6,7 @@ import { VulnRow } from '../components/vulns/VulnRow'
 import { VulnDetailDialog } from '../components/vulns/VulnDetailDialog'
 import { EmptyState } from '../components/common/EmptyState'
 import { useVulnerabilities } from '../hooks/useQueries'
+import { isValidSeverity } from '../lib/security'
 import type { Vulnerability } from '../types'
 import { Search, Filter } from 'lucide-react'
 
@@ -41,7 +42,7 @@ export default function VulnerabilitiesPage() {
           v.title?.toLowerCase().includes(q)
       )
     }
-    if (severityFilter) {
+    if (severityFilter && isValidSeverity(severityFilter)) {
       result = result.filter((v) => v.severity === severityFilter)
     }
     return result

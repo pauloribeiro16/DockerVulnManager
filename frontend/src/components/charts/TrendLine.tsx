@@ -5,10 +5,10 @@ interface TrendLineProps {
 }
 
 const COLORS = {
-  critical: 'hsl(0 84% 60%)',
-  high: 'hsl(25 95% 53%)',
-  medium: 'hsl(45 93% 47%)',
-  low: 'hsl(187 71% 49%)',
+  critical: '#ef4444',
+  high: '#f97316',
+  medium: '#eab308',
+  low: '#06b6d4',
 }
 
 export function TrendLine({ data }: TrendLineProps) {

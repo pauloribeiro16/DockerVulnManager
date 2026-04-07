@@ -9,11 +9,11 @@ interface SeverityDonutProps {
 }
 
 const COLORS = {
-  CRITICAL: 'hsl(0 84% 60%)',
-  HIGH: 'hsl(25 95% 53%)',
-  MEDIUM: 'hsl(45 93% 47%)',
-  LOW: 'hsl(187 71% 49%)',
-  INFO: 'hsl(215 14% 34%)',
+  CRITICAL: '#ef4444',
+  HIGH: '#f97316',
+  MEDIUM: '#eab308',
+  LOW: '#06b6d4',
+  INFO: '#6b7280',
 }
 
 export function SeverityDonut({ critical, high, medium, low, info }: SeverityDonutProps) {

@@ -2,6 +2,40 @@
 
 All notable changes to DockerVulnManager.
 
+### af1fa69 - 2026-04-07
+
+**fix: remediate all project vulnerabilities + add backend API + Docker setup**
+
+Files changed (25):
+- .server.pid
+- Dockerfile
+- VULN_REMEDIATION.md
+- docker-compose.yml
+- frontend/src/App.tsx
+- frontend/src/components/charts/SeverityDonut.tsx
+- frontend/src/components/charts/TrendLine.tsx
+- frontend/src/components/layout/TopBar.tsx
+- frontend/src/lib/security.ts
+- frontend/src/pages/ImageDetail.tsx
+- frontend/src/pages/Images.tsx
+- frontend/src/pages/Overview.tsx
+- frontend/src/pages/Vulnerabilities.tsx
+- hooks/post-commit
+- reload.sh
+- src/api/main.py
+- src/api/routers/dashboard.py
+- src/api/routers/hardening.py
+- src/api/routers/images.py
+- src/api/routers/scans.py
+- src/api/routers/vulnerabilities.py
+- src/api/schemas.py
+- start.sh
+- stop.sh
+- tests/test_api.py
+---
+
+
+
 ### 3e4f47c - 2026-04-07
 
 **test: verify auto-log hook**

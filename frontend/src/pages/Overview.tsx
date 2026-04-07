@@ -13,43 +13,56 @@ import { formatDate, getRiskColor } from '../lib/utils'
 import { Container, ShieldAlert, Activity } from 'lucide-react'
 
 // Mock data for demonstration (remove when API is ready)
+// All numbers are consistent: KPI totals = sum of individual image counts
+// Status is derived from risk_score (not random)
+const mockImagesRaw = [
+  { name: 'nginx', tag: 'latest', last_scan: new Date(Date.now() - 2 * 3600000).toISOString(), risk_score: 54, total_vulns: 45, critical: 0, high: 2, medium: 18, low: 25 },
+  { name: 'python', tag: '3.11-slim', last_scan: new Date(Date.now() - 48 * 3600000).toISOString(), risk_score: 32, total_vulns: 38, critical: 0, high: 1, medium: 15, low: 22 },
+  { name: 'node', tag: '20-alpine', last_scan: new Date(Date.now() - 48 * 3600000).toISOString(), risk_score: 71, total_vulns: 52, critical: 1, high: 3, medium: 20, low: 28 },
+  { name: 'redis', tag: '7-alpine', last_scan: new Date(Date.now() - 5 * 3600000).toISOString(), risk_score: 18, total_vulns: 22, critical: 0, high: 0, medium: 8, low: 14 },
+  { name: 'postgres', tag: '16-alpine', last_scan: new Date(Date.now() - 24 * 3600000).toISOString(), risk_score: 45, total_vulns: 35, critical: 0, high: 2, medium: 12, low: 21 },
+  { name: 'alpine', tag: '3.19', last_scan: new Date(Date.now() - 48 * 3600000).toISOString(), risk_score: 8, total_vulns: 12, critical: 0, high: 0, medium: 4, low: 8 },
+  { name: 'ubuntu', tag: '22.04', last_scan: new Date(Date.now() - 10 * 3600000).toISOString(), risk_score: 62, total_vulns: 71, critical: 1, high: 4, medium: 28, low: 38 },
+]
+
+// Derive status from most severe vulnerability, not just risk_score
+const mockImages = mockImagesRaw.map(img => ({
+  ...img,
+  status: img.critical > 0 ? 'danger' as const : img.high > 2 || img.risk_score >= 70 ? 'danger' as const : img.risk_score >= 40 ? 'warning' as const : 'safe' as const,
+}))
+
+// KPI totals derived from individual images
+const totalVulns = mockImages.reduce((s, i) => s + i.total_vulns, 0)
+const totalCritical = mockImages.reduce((s, i) => s + i.critical, 0)
+const totalHigh = mockImages.reduce((s, i) => s + i.high, 0)
+const totalMedium = mockImages.reduce((s, i) => s + i.medium, 0)
+const totalLow = mockImages.reduce((s, i) => s + i.low, 0)
+const avgRisk = Math.round(mockImages.reduce((s, i) => s + i.risk_score, 0) / mockImages.length)
+
 const mockSummary = {
-  total_images: 14,
-  total_vulns: 275,
-  critical: 2,
-  high: 12,
-  medium: 89,
-  low: 145,
-  risk_score: 67,
-  last_scan: new Date(Date.now() - 2 * 3600000).toISOString(),
+  total_images: mockImages.length,
+  total_vulns: totalVulns,
+  critical: totalCritical,
+  high: totalHigh,
+  medium: totalMedium,
+  low: totalLow,
+  info: 0,
+  risk_score: avgRisk,
+  last_scan: mockImages[0].last_scan,
   trend: Array.from({ length: 7 }, (_, i) => ({
     date: new Date(Date.now() - (6 - i) * 86400000).toISOString().split('T')[0],
-    critical: Math.floor(Math.random() * 5),
-    high: Math.floor(Math.random() * 15) + 5,
-    medium: Math.floor(Math.random() * 30) + 50,
-    low: Math.floor(Math.random() * 40) + 80,
+    critical: Math.floor(Math.random() * 3),
+    high: Math.floor(Math.random() * 5) + 3,
+    medium: Math.floor(Math.random() * 15) + 30,
+    low: Math.floor(Math.random() * 15) + 40,
   })),
 }
-
-const mockImages = Array.from({ length: 14 }, (_, i) => ({
-  name: ['nginx', 'python', 'node', 'redis', 'postgres', 'alpine', 'ubuntu'][i % 7],
-  tag: ['latest', '3.11-slim', '20-alpine', '7-alpine', '16-alpine', '3.19', '22.04'][i % 7],
-  last_scan: new Date(Date.now() - Math.random() * 86400000 * 3).toISOString(),
-  risk_score: Math.floor(Math.random() * 100),
-  total_vulns: Math.floor(Math.random() * 300),
-  critical: Math.floor(Math.random() * 5),
-  high: Math.floor(Math.random() * 15),
-  medium: Math.floor(Math.random() * 50),
-  low: Math.floor(Math.random() * 100),
-  status: ['safe', 'warning', 'danger'][Math.floor(Math.random() * 3)] as 'safe' | 'warning' | 'danger',
-}))
 
 const mockPackages = [
   { package: 'openssl', count: 12 },
   { package: 'curl', count: 8 },
   { package: 'glibc', count: 6 },
   { package: 'libxml2', count: 4 },
-  { package: 'nginx', count: 2 },
   { package: 'zlib', count: 3 },
   { package: 'expat', count: 2 },
   { package: 'libpng', count: 1 },

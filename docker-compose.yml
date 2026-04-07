@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dockervuln-dashboard
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount Docker socket to scan local containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persist database
+      - vuln-data:/app/data
+    environment:
+      - DB_PATH=/app/data/vulns.db
+      - SCANNER_TRIVY_PATH=trivy
+      - SCANNER_TIMEOUT=300
+      - SCANNER_CACHE_ENABLED=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Run tests in a separate container
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dockervuln-tests
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DB_PATH=/tmp/test.db
+    command: pytest tests/ -v --cov=src
+    profiles:
+      - test
+
+volumes:
+  vuln-data:
+    driver: local
