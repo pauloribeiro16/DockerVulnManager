@@ -8,9 +8,12 @@ import { TrendLine } from '../components/charts/TrendLine'
 import { TopPackages } from '../components/charts/TopPackages'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { ScanButton } from '../components/common/ScanButton'
+import { ScanDialog } from '../components/common/ScanDialog'
 import { useDashboardSummary, useImages } from '../hooks/useQueries'
+import { useQueryClient } from '@tanstack/react-query'
 import { formatDate, getRiskColor } from '../lib/utils'
 import { Container, ShieldAlert, Activity } from 'lucide-react'
+import { useState } from 'react'
 
 // Mock data for demonstration (remove when API is ready)
 // All numbers are consistent: KPI totals = sum of individual image counts
@@ -71,15 +74,31 @@ const mockPackages = [
 export default function OverviewPage() {
   const { data: summary, isLoading } = useDashboardSummary()
   const { data: images } = useImages()
+  const queryClient = useQueryClient()
+  const [showScanDialog, setShowScanDialog] = useState(false)
+  const [scanning, setScanning] = useState(false)
 
+  // Use real API data, fallback to mock only if API fails
   const s = summary || mockSummary
-  const imgs = images || mockImages
+  const imgs = (images && images.length > 0) ? images : mockImages
+
+  const handleScanComplete = () => {
+    setScanning(false)
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['images'] })
+  }
 
   return (
     <>
       <TopBar title="Overview">
-        <ScanButton onScan={() => {}} scanning={false} />
+        <ScanButton onScan={() => setShowScanDialog(true)} scanning={scanning} />
       </TopBar>
+
+      <ScanDialog
+        open={showScanDialog}
+        onClose={() => setShowScanDialog(false)}
+        onScanComplete={handleScanComplete}
+      />
 
       <div className="p-6 space-y-6">
         {/* KPI Cards */}
@@ -273,3 +292,4 @@ function KPICard({
     </Card>
   )
 }
+

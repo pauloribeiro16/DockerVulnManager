@@ -2,6 +2,24 @@
 
 All notable changes to DockerVulnManager.
 
+### 42db0f3 - 2026-04-08
+
+**feat: connect frontend to real backend API with Trivy scanner**
+
+Files changed (9):
+- .server.pid
+- frontend/src/api/client.ts
+- frontend/src/components/common/ScanDialog.tsx
+- frontend/src/pages/Overview.tsx
+- src/api/routers/dashboard.py
+- src/api/routers/images.py
+- src/api/routers/scans.py
+- src/api/routers/vulnerabilities.py
+- src/api/schemas.py
+---
+
+
+
 ### acf224e - 2026-04-07
 
 **fix: Docker security hardening - pin versions, add resource limits, read-only FS, drop capabilities**

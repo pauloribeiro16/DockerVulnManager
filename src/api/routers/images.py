@@ -21,13 +21,13 @@ def _get_docker() -> DockerManager:
     return DockerManager()
 
 
-OrchestratorDep = Annotated[ScannerOrchestrator, Depends(_get_orchestrator)]
+
 DockerDep = Annotated[DockerManager, Depends(_get_docker)]
 
 
 @router.get("/", response_model=list[ImageHealthResponse])
 def list_images(
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> list[ImageHealthResponse]:
     """List all scanned images with health status."""
     scans = orch.db.list_scans(limit=100)
@@ -67,7 +67,7 @@ async def scan_image(
     name: str,
     tag: str,
     background_tasks: BackgroundTasks,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> ScanTriggerResponse:
     """Trigger a scan for a specific image."""
     import uuid
@@ -88,7 +88,7 @@ async def scan_image(
 def get_image_history(
     name: str,
     tag: str,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> list:
     """Get scan history for a specific image."""
     return orch.db.list_scans(limit=20)

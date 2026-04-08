@@ -17,8 +17,6 @@ def _get_orchestrator() -> ScannerOrchestrator:
     return ScannerOrchestrator()
 
 
-OrchestratorDep = Annotated[ScannerOrchestrator, Depends(_get_orchestrator)]
-
 # WebSocket connection manager
 active_connections: dict[str, WebSocket] = {}
 
@@ -27,7 +25,7 @@ active_connections: dict[str, WebSocket] = {}
 def list_scans(
     page: int = 1,
     size: int = 20,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> list[ScanResponse]:
     """List recent scans with pagination."""
     scans = orch.db.list_scans(limit=size * page)
@@ -54,7 +52,7 @@ def list_scans(
 async def trigger_scan(
     data: ScanCreate,
     background_tasks: BackgroundTasks,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> ScanTriggerResponse:
     """Trigger a new scan in the background."""
     import uuid
@@ -92,7 +90,7 @@ async def trigger_scan(
 @router.get("/{scan_id}", response_model=ScanResponse)
 def get_scan(
     scan_id: int,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> ScanResponse:
     """Get scan details by ID."""
     record = orch.db.get_scan(scan_id)

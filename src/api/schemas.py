@@ -1,11 +1,13 @@
 """API schemas - Pydantic models for request/response."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 
 from src.models.vulnerability import Severity, Vulnerability
+
+T = TypeVar('T')
 
 
 class TrendPoint(BaseModel):
@@ -61,7 +63,7 @@ class VulnFilter(BaseModel):
     min_cvss: Optional[float] = None
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     items: list[T]
     total: int
     page: int

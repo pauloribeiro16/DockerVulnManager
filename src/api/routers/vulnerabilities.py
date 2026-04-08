@@ -14,7 +14,7 @@ def _get_orchestrator() -> ScannerOrchestrator:
     return ScannerOrchestrator()
 
 
-OrchestratorDep = Annotated[ScannerOrchestrator, Depends(_get_orchestrator)]
+
 
 
 @router.get("/", response_model=list[Vulnerability])
@@ -23,7 +23,7 @@ def list_vulnerabilities(
     package: Optional[str] = None,
     image: Optional[str] = None,
     min_cvss: Optional[float] = None,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> list[Vulnerability]:
     """List vulnerabilities with filtering."""
     scans = orch.db.list_scans(limit=50)
@@ -50,7 +50,7 @@ def list_vulnerabilities(
 @router.get("/{cve_id}", response_model=Vulnerability)
 def get_vulnerability(
     cve_id: str,
-    orch: OrchestratorDep = Depends(_get_orchestrator),
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> Vulnerability:
     """Get vulnerability details by CVE ID."""
     scans = orch.db.list_scans(limit=50)
