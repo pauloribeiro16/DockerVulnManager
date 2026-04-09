@@ -151,6 +151,21 @@ class TestImagesAPI:
         data = response.json()
         assert "scan_id" in data
 
+    @patch("src.api.routers.scans.DockerManager.list_images")
+    @patch("src.api.routers.scans.ScannerOrchestrator.scan_image")
+    def test_scan_all(self, mock_scan, mock_list, client):
+        mock_list.return_value = [
+            {"id": "abc123", "tags": ["nginx:latest"], "created": "", "size": 0},
+            {"id": "def456", "tags": ["python:3.11-slim"], "created": "", "size": 0},
+        ]
+        mock_scan.return_value = _make_scan_result()
+
+        response = client.post("/api/v1/scans/scan-all")
+        assert response.status_code == 200
+        data = response.json()
+        assert "scan_id" in data
+        assert data["status"] == "queued"
+
 
 class TestHardeningAPI:
     """Test hardening endpoints."""

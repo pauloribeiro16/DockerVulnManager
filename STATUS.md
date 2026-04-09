@@ -108,7 +108,7 @@ DockerVulnManager/
 | Python files | 29 |
 | TypeScript files | 34 |
 | Tests | 33 passing |
-| Lines of code | ~6011 |
+| Lines of code | ~6107 |
 | CLI commands | 9 |
 | Dashboard pages | 6 |
 | Security checks | 9 |

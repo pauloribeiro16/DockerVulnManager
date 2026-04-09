@@ -27,6 +27,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ image }),
     }),
+    scanAll: () => request<{ scan_id: string }>('/api/v1/scans/scan-all', {
+      method: 'POST',
+    }),
   },
   vulnerabilities: {
     list: (params?: Record<string, string>) => {

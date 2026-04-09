@@ -1,11 +1,13 @@
 """Scans API routes."""
 
 import asyncio
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
 
 from src.api.schemas import ScanCreate, ScanResponse, ScanTriggerResponse, ScanProgressMessage
+from src.core.docker_manager import DockerManager
 from src.core.scanner import ScannerOrchestrator
 from src.utils.logger import get_logger
 
@@ -55,13 +57,11 @@ async def trigger_scan(
     orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> ScanTriggerResponse:
     """Trigger a new scan in the background."""
-    import uuid
     scan_id = str(uuid.uuid4())[:8]
 
     async def _run_scan():
         try:
             result = orch.scan_image(data.image, save_to_db=True)
-            # Notify WebSocket clients
             if scan_id in active_connections:
                 await active_connections[scan_id].send_json(
                     ScanProgressMessage(
@@ -84,6 +84,35 @@ async def trigger_scan(
                 )
 
     background_tasks.add_task(_run_scan)
+    return ScanTriggerResponse(scan_id=scan_id, status="queued")
+
+
+@router.post("/scan-all", response_model=ScanTriggerResponse)
+def trigger_scan_all(
+    background_tasks: BackgroundTasks,
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
+) -> ScanTriggerResponse:
+    """Trigger scans for all local Docker images."""
+    scan_id = str(uuid.uuid4())[:8]
+
+    def _run_scan_all():
+        docker_mgr = DockerManager()
+        images = docker_mgr.list_images()
+        total = 0
+        errors = 0
+        for image in images:
+            for tag_ref in image.get("tags", []):
+                if tag_ref == "<none>":
+                    continue
+                try:
+                    orch.scan_image(tag_ref, save_to_db=True)
+                    total += 1
+                except Exception as e:
+                    logger.error("Scan failed for {}: {}", tag_ref, str(e))
+                    errors += 1
+        logger.info("Scan-all complete: {} images scanned, {} errors", total, errors)
+
+    background_tasks.add_task(_run_scan_all)
     return ScanTriggerResponse(scan_id=scan_id, status="queued")
 
 
