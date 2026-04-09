@@ -2,6 +2,26 @@
 
 All notable changes to DockerVulnManager.
 
+### 636a302 - 2026-04-09
+
+**fix: remove frontend mock data, wire all pages to real API + fix test blocking**
+
+Files changed (11):
+- .server.pid
+- QWEN.md
+- frontend/src/hooks/useQueries.ts
+- frontend/src/pages/Hardening.tsx
+- frontend/src/pages/History.tsx
+- frontend/src/pages/ImageDetail.tsx
+- frontend/src/pages/Images.tsx
+- frontend/src/pages/Overview.tsx
+- frontend/src/pages/Vulnerabilities.tsx
+- pyproject.toml
+- tests/test_api.py
+---
+
+
+
 ### 42db0f3 - 2026-04-08
 
 **feat: connect frontend to real backend API with Trivy scanner**

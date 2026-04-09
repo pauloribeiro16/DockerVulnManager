@@ -104,11 +104,11 @@ DockerVulnManager/
 
 | Metric | Value |
 |--------|-------|
-| Total files | 82 |
+| Total files | 83 |
 | Python files | 29 |
 | TypeScript files | 34 |
 | Tests | 33 passing |
-| Lines of code | ~6030 |
+| Lines of code | ~6011 |
 | CLI commands | 9 |
 | Dashboard pages | 6 |
 | Security checks | 9 |

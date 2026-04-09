@@ -8,23 +8,11 @@ import { EmptyState } from '../components/common/EmptyState'
 import { useVulnerabilities } from '../hooks/useQueries'
 import { isValidSeverity } from '../lib/security'
 import type { Vulnerability } from '../types'
-import { Search, Filter } from 'lucide-react'
-
-// Mock data
-const mockVulns: Vulnerability[] = Array.from({ length: 50 }, (_, i) => ({
-  cve_id: `CVE-2024-${1000 + i}`,
-  severity: (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const)[i % 5],
-  package_name: ['openssl', 'curl', 'glibc', 'libxml2', 'nginx', 'zlib', 'expat', 'libpng'][i % 8],
-  installed_version: `${1 + (i % 5)}.${i % 10}.${i % 20}`,
-  fixed_version: i % 3 === 0 ? `${2 + (i % 5)}.${i % 10}.${i % 20}` : null,
-  title: `Vulnerability description for CVE-2024-${1000 + i}`,
-  cvss_score: i % 5 === 0 ? 9.8 : i % 5 === 1 ? 7.5 : i % 5 === 2 ? 5.5 : i % 5 === 3 ? 3.2 : 1.0,
-  references: [`https://nvd.nist.gov/vuln/detail/CVE-2024-${1000 + i}`],
-}))
+import { Search, Filter, Loader2 } from 'lucide-react'
 
 export default function VulnerabilitiesPage() {
   const { data, isLoading } = useVulnerabilities()
-  const vulns = data?.length ? data : mockVulns
+  const vulns = data ?? []
   const [selectedVuln, setSelectedVuln] = useState<Vulnerability | null>(null)
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
