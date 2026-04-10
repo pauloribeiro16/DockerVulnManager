@@ -8,7 +8,7 @@ import { EmptyState } from '../components/common/EmptyState'
 import { useVulnerabilities } from '../hooks/useQueries'
 import { isValidSeverity } from '../lib/security'
 import type { Vulnerability } from '../types'
-import { Search, Filter, Loader2 } from 'lucide-react'
+import { Search, Filter } from 'lucide-react'
 
 export default function VulnerabilitiesPage() {
   const { data, isLoading } = useVulnerabilities()

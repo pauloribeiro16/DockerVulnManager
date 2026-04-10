@@ -11,7 +11,7 @@ import { formatDate, getRiskColor } from '../lib/utils'
 import { sanitizeImageName } from '../lib/security'
 import { useImageHistory } from '../hooks/useQueries'
 import { ArrowLeft, RefreshCw, Loader2 } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import type { Vulnerability } from '../types'
 
 export default function ImageDetailPage() {

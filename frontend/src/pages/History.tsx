@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { TrendLine } from '../components/charts/TrendLine'
 import { EmptyState } from '../components/common/EmptyState'
 import { useTrendData, useScans } from '../hooks/useQueries'
-import { formatDate, getRiskColor } from '../lib/utils'
+import { formatDate } from '../lib/utils'
 import { History as HistoryIcon, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 
 export default function HistoryPage() {

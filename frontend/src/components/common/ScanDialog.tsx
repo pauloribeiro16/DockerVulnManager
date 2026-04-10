@@ -3,6 +3,7 @@ import { X, Loader2, Layers } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Progress } from '../ui/progress'
 import { api } from '../../api/client'
+import type { ScanResult } from '../../types'
 
 interface ScanDialogProps {
   open: boolean
@@ -37,7 +38,7 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
       attempts++
       setProgress(prev => Math.min(prev + 1, 95))
 
-      api.scans.list(1, 1).then(scans => {
+      api.scans.list(1, 1).then((scans: ScanResult[]) => {
         if (scans.length > 0) {
           const latest = scans[0]
           setStatusMessage(

@@ -17,7 +17,7 @@ export function useTrendData() {
 }
 
 export function useScans(page = 1, size = 20) {
-  return useQuery({
+  return useQuery<ScanResult[]>({
     queryKey: ['scans', page, size],
     queryFn: () => api.scans.list(page, size),
   })

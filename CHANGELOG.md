@@ -2,6 +2,21 @@
 
 All notable changes to DockerVulnManager.
 
+### e2bbd2a - 2026-04-10
+
+**fix: frontend TypeScript errors — type api.scans.list, remove unused imports**
+
+Files changed (6):
+- frontend/src/api/client.ts
+- frontend/src/components/common/ScanDialog.tsx
+- frontend/src/hooks/useQueries.ts
+- frontend/src/pages/History.tsx
+- frontend/src/pages/ImageDetail.tsx
+- frontend/src/pages/Vulnerabilities.tsx
+---
+
+
+
 ### c0d60be - 2026-04-10
 
 **feat: add evaluation harness with two independent verifier agents**

@@ -21,7 +21,7 @@ export const api = {
     trend: () => request<import('../types').TrendPoint[]>('/api/v1/dashboard/trend'),
   },
   scans: {
-    list: (page = 1, size = 20) => request(`/api/v1/scans?page=${page}&size=${size}`),
+    list: (page = 1, size = 20) => request<import('../types').ScanResult[]>(`/api/v1/scans?page=${page}&size=${size}`),
     get: (id: number) => request<import('../types').ScanResult>(`/api/v1/scans/${id}`),
     create: (image: string) => request<{ scan_id: string }>('/api/v1/scans', {
       method: 'POST',
