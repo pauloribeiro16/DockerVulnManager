@@ -4,9 +4,9 @@ import asyncio
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
-from src.api.schemas import ScanCreate, ScanResponse, ScanTriggerResponse, ScanProgressMessage
+from src.api.schemas import ScanCreate, ScanJobStatus, ScanResponse, ScanTriggerResponse, ScanProgressMessage
 from src.core.docker_manager import DockerManager
 from src.core.scanner import ScannerOrchestrator
 from src.utils.logger import get_logger
@@ -75,9 +75,20 @@ async def trigger_scan(
     """Trigger a new scan in the background."""
     scan_id = str(uuid.uuid4())[:8]
 
+    # Create job record
+    orch.db.create_scan_job(scan_id=scan_id, image=data.image)
+
     async def _run_scan():
         try:
+            orch.db.update_scan_job(scan_id, status="running", message=f"Scanning {data.image}...")
             result = orch.scan_image(data.image, save_to_db=True)
+            orch.db.update_scan_job(
+                scan_id,
+                status="complete",
+                message=f"Scan complete: {result.total_count} vulnerabilities found",
+                vulns_found=result.total_count,
+            )
+            # Notify WebSocket clients
             if scan_id in active_connections:
                 await active_connections[scan_id].send_json(
                     ScanProgressMessage(
@@ -89,6 +100,7 @@ async def trigger_scan(
                 )
         except Exception as e:
             logger.error("Scan failed: {}", str(e))
+            orch.db.update_scan_job(scan_id, status="failed", message=str(e))
             if scan_id in active_connections:
                 await active_connections[scan_id].send_json(
                     ScanProgressMessage(
@@ -111,22 +123,46 @@ def trigger_scan_all(
     """Trigger scans for all local Docker images."""
     scan_id = str(uuid.uuid4())[:8]
 
+    # Count images first
+    docker_mgr = DockerManager()
+    images = docker_mgr.list_images()
+    total = sum(1 for img in images for tag in img.get("tags", []) if tag != "<none>")
+
+    # Create job record
+    orch.db.create_scan_job(scan_id=scan_id, total_images=total)
+
     def _run_scan_all():
-        docker_mgr = DockerManager()
-        images = docker_mgr.list_images()
-        total = 0
+        orch.db.update_scan_job(scan_id, status="running", message=f"Scanning {total} images...")
+        scanned = 0
         errors = 0
+        vulns = 0
         for image in images:
             for tag_ref in image.get("tags", []):
                 if tag_ref == "<none>":
                     continue
                 try:
-                    orch.scan_image(tag_ref, save_to_db=True)
-                    total += 1
+                    orch.db.update_scan_job(scan_id, message=f"Scanning {tag_ref}...")
+                    result = orch.scan_image(tag_ref, save_to_db=True)
+                    scanned += 1
+                    vulns += result.total_count
+                    orch.db.update_scan_job(
+                        scan_id,
+                        scanned_images=scanned,
+                        vulns_found=vulns,
+                        message=f"Scanned {scanned}/{total}: {tag_ref}",
+                    )
                 except Exception as e:
                     logger.error("Scan failed for {}: {}", tag_ref, str(e))
                     errors += 1
-        logger.info("Scan-all complete: {} images scanned, {} errors", total, errors)
+
+        status = "complete" if errors == 0 else "complete"
+        orch.db.update_scan_job(
+            scan_id,
+            status=status,
+            message=f"Scan-all complete: {scanned} images scanned, {errors} errors, {vulns} total vulns",
+            scanned_images=scanned,
+            vulns_found=vulns,
+        )
 
     background_tasks.add_task(_run_scan_all)
     return ScanTriggerResponse(scan_id=scan_id, status="queued")
@@ -157,6 +193,42 @@ def get_scan(
         low_count=record.low_count,
         vulnerabilities=record.vulnerabilities,
     )
+
+
+@router.get("/status/{scan_id}", response_model=ScanJobStatus)
+def get_scan_status(
+    scan_id: str,
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
+) -> ScanJobStatus:
+    """Get real-time status of a scan job (queued/running/complete/failed)."""
+    job = orch.db.get_scan_job(scan_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+    return ScanJobStatus(**job)
+
+
+@router.delete("/status/{scan_id}")
+def delete_scan_job(
+    scan_id: str,
+    orch: ScannerOrchestrator = Depends(_get_orchestrator),
+) -> dict:
+    """Delete a completed or failed scan job (cleanup)."""
+    job = orch.db.get_scan_job(scan_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+    if job["status"] not in ("complete", "failed"):
+        raise HTTPException(status_code=400, detail="Can only delete complete or failed jobs")
+    orch.db.update_scan_job(scan_id)  # no-op to verify exists
+    session = orch.db.SessionLocal()
+    try:
+        from src.database.manager import ScanJobModel
+        job_record = session.query(ScanJobModel).filter(ScanJobModel.scan_id == scan_id).first()
+        if job_record:
+            session.delete(job_record)
+            session.commit()
+    finally:
+        session.close()
+    return {"message": f"Scan job {scan_id} deleted"}
 
 
 @router.websocket("/ws/progress/{scan_id}")

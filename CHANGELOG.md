@@ -2,6 +2,22 @@
 
 All notable changes to DockerVulnManager.
 
+### ca8d82e - 2026-04-10
+
+**feat: add real-time scan progress tracking with job status endpoint**
+
+Files changed (7):
+- frontend/src/api/client.ts
+- frontend/src/components/common/ScanDialog.tsx
+- frontend/src/types/index.ts
+- src/api/routers/scans.py
+- src/api/schemas.py
+- src/database/manager.py
+- tests/test_api.py
+---
+
+
+
 ### e2bbd2a - 2026-04-10
 
 **fix: frontend TypeScript errors — type api.scans.list, remove unused imports**

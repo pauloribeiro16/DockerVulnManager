@@ -1,5 +1,6 @@
 """Database manager for storing and querying scan results."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import JSON, Column, DateTime, Float, Integer, String, create_engine
@@ -54,6 +55,22 @@ class ScanResultModel(Base):
             risk_score=result.risk_score,
             vulnerabilities_json=vulns_json,
         )
+
+
+class ScanJobModel(Base):
+    """SQLAlchemy model for tracking in-progress scan jobs."""
+
+    __tablename__ = "scan_jobs"
+
+    scan_id = Column(String, primary_key=True)
+    status = Column(String, nullable=False, default="queued", index=True)
+    image = Column(String, nullable=True)
+    total_images = Column(Integer, nullable=True)
+    scanned_images = Column(Integer, default=0)
+    message = Column(String, nullable=True)
+    vulns_found = Column(Integer, default=0)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class DatabaseManager:
@@ -195,6 +212,83 @@ class DatabaseManager:
                 }
                 for r in records
             ]
+        finally:
+            session.close()
+
+    # ── Scan Job Tracking ──────────────────────────────────────────
+
+    def create_scan_job(self, scan_id: str, image: str | None = None, total_images: int | None = None) -> None:
+        """Create a new scan job with status 'queued'."""
+        session = self.SessionLocal()
+        try:
+            job = ScanJobModel(
+                scan_id=scan_id,
+                status="queued",
+                image=image,
+                total_images=total_images,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            session.add(job)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise DatabaseError(f"Failed to create scan job: {e}")
+        finally:
+            session.close()
+
+    def update_scan_job(self, scan_id: str, **kwargs) -> None:
+        """Update fields of an existing scan job (status, message, scanned_images, vulns_found)."""
+        session = self.SessionLocal()
+        try:
+            job = session.query(ScanJobModel).filter(ScanJobModel.scan_id == scan_id).first()
+            if job:
+                for key, value in kwargs.items():
+                    if hasattr(job, key):
+                        setattr(job, key, value)
+                job.updated_at = datetime.now(timezone.utc)
+                session.commit()
+        except Exception as e:
+            session.rollback()
+            raise DatabaseError(f"Failed to update scan job: {e}")
+        finally:
+            session.close()
+
+    def get_scan_job(self, scan_id: str) -> dict | None:
+        """Get scan job status by ID."""
+        session = self.SessionLocal()
+        try:
+            job = session.query(ScanJobModel).filter(ScanJobModel.scan_id == scan_id).first()
+            if not job:
+                return None
+            return {
+                "scan_id": job.scan_id,
+                "status": job.status,
+                "image": job.image,
+                "total_images": job.total_images,
+                "scanned_images": job.scanned_images,
+                "message": job.message,
+                "vulns_found": job.vulns_found,
+                "created_at": job.created_at.isoformat(),
+                "updated_at": job.updated_at.isoformat(),
+            }
+        finally:
+            session.close()
+
+    def cleanup_old_jobs(self, max_age_hours: int = 24) -> int:
+        """Delete completed/failed jobs older than max_age_hours. Returns count deleted."""
+        session = self.SessionLocal()
+        try:
+            cutoff = datetime.now(timezone.utc).replace(microsecond=0) - __import__('datetime', fromlist=['timedelta']).timedelta(hours=max_age_hours)
+            deleted = session.query(ScanJobModel).filter(
+                ScanJobModel.status.in_(["complete", "failed"]),
+                ScanJobModel.updated_at < cutoff,
+            ).delete(synchronize_session=False)
+            session.commit()
+            return deleted
+        except Exception:
+            session.rollback()
+            return 0
         finally:
             session.close()
 

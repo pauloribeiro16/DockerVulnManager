@@ -120,3 +120,15 @@ class ScanProgressMessage(BaseModel):
     progress: int
     status: str
     message: str
+
+
+class ScanJobStatus(BaseModel):
+    scan_id: str
+    status: str  # queued | running | complete | failed
+    image: str | None = None
+    total_images: int | None = None
+    scanned_images: int = 0
+    message: str | None = None
+    vulns_found: int = 0
+    created_at: str
+    updated_at: str

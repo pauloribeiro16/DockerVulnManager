@@ -97,3 +97,15 @@ export interface ScanProgress {
   status: string
   message: string
 }
+
+export interface ScanJobStatus {
+  scan_id: string
+  status: 'queued' | 'running' | 'complete' | 'failed'
+  image: string | null
+  total_images: number | null
+  scanned_images: number
+  message: string | null
+  vulns_found: number
+  created_at: string
+  updated_at: string
+}

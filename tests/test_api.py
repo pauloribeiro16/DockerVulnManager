@@ -166,6 +166,28 @@ class TestImagesAPI:
         assert "scan_id" in data
         assert data["status"] == "queued"
 
+    @patch("src.api.routers.scans.ScannerOrchestrator.scan_image")
+    def test_scan_job_status_tracking(self, mock_scan, client):
+        """Verify that a scan creates a job with queued status."""
+        mock_scan.return_value = _make_scan_result()
+
+        response = client.post("/api/v1/scans/", json={"image": "nginx:latest"})
+        assert response.status_code == 200
+        data = response.json()
+        scan_id = data["scan_id"]
+
+        # Check status endpoint
+        status_resp = client.get(f"/api/v1/scans/status/{scan_id}")
+        assert status_resp.status_code == 200
+        status = status_resp.json()
+        assert status["scan_id"] == scan_id
+        assert status["status"] in ("queued", "running", "complete")
+
+    def test_scan_status_not_found(self, client):
+        """Check that non-existent scan job returns 404."""
+        response = client.get("/api/v1/scans/status/nonexistent")
+        assert response.status_code == 404
+
 
 class TestHardeningAPI:
     """Test hardening endpoints."""

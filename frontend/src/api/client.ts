@@ -30,6 +30,7 @@ export const api = {
     scanAll: () => request<{ scan_id: string }>('/api/v1/scans/scan-all', {
       method: 'POST',
     }),
+    getStatus: (scanId: string) => request<import('../types').ScanJobStatus>(`/api/v1/scans/status/${scanId}`),
   },
   vulnerabilities: {
     list: (params?: Record<string, string>) => {

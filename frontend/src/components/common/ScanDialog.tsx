@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
-import { X, Loader2, Layers } from 'lucide-react'
+import { X, Loader2, Layers, CheckCircle, AlertCircle } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Progress } from '../ui/progress'
 import { api } from '../../api/client'
-import type { ScanResult } from '../../types'
+import type { ScanJobStatus } from '../../types'
 
 interface ScanDialogProps {
   open: boolean
@@ -19,8 +19,7 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
   const [error, setError] = useState('')
   const [scanning, setScanning] = useState(false)
   const [scanId, setScanId] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [statusMessage, setStatusMessage] = useState('')
+  const [jobStatus, setJobStatus] = useState<ScanJobStatus | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   if (!open) return null
@@ -29,28 +28,33 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
     setMode(newMode)
     setError('')
     setImageName('')
+    setJobStatus(null)
   }
 
-  const startPolling = () => {
+  const startPolling = (sid: string) => {
     let attempts = 0
-    const maxAttempts = 150 // 5 min at 2s interval
+    const maxAttempts = 300 // 10 min at 2s interval
     const interval = setInterval(() => {
       attempts++
-      setProgress(prev => Math.min(prev + 1, 95))
 
-      api.scans.list(1, 1).then((scans: ScanResult[]) => {
-        if (scans.length > 0) {
-          const latest = scans[0]
-          setStatusMessage(
-            `${latest.image_name}:${latest.image_tag} — ${latest.total_count} vulns found`
-          )
+      api.scans.getStatus(sid).then(status => {
+        setJobStatus(status)
+
+        if (status.status === 'complete' || status.status === 'failed') {
+          clearInterval(interval)
+          setScanning(false)
+          onScanComplete()
         }
-      }).catch(() => {})
+      }).catch(() => {
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          setScanning(false)
+          onScanComplete()
+        }
+      })
 
       if (attempts >= maxAttempts) {
         clearInterval(interval)
-        setStatusMessage('Scan still running in background. Results will appear when complete.')
-        setProgress(95)
         setScanning(false)
         onScanComplete()
       }
@@ -69,8 +73,7 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
 
     setError('')
     setScanning(true)
-    setProgress(0)
-    setStatusMessage('Scan queued...')
+    setJobStatus(null)
 
     try {
       let sid: string
@@ -82,7 +85,7 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
         sid = resp.scan_id
       }
       setScanId(sid)
-      startPolling()
+      startPolling(sid)
     } catch (err: any) {
       setError(err.message || 'Failed to start scan')
       setScanning(false)
@@ -95,11 +98,48 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
       pollRef.current = null
     }
     setScanning(false)
-    setProgress(0)
-    setStatusMessage('')
+    setJobStatus(null)
     onScanComplete()
     onClose()
   }
+
+  const getProgress = () => {
+    if (!jobStatus) return 0
+    if (jobStatus.status === 'complete') return 100
+    if (jobStatus.status === 'failed') return 100
+    if (jobStatus.total_images && jobStatus.total_images > 0) {
+      return Math.round((jobStatus.scanned_images / jobStatus.total_images) * 95)
+    }
+    return 15 // running but unknown progress
+  }
+
+  const getStatusDisplay = () => {
+    if (!jobStatus) return { text: 'Scan queued...', icon: <Loader2 className="w-12 h-12 animate-spin text-sidebar-active mx-auto mb-3" /> }
+
+    switch (jobStatus.status) {
+      case 'queued':
+        return { text: 'Waiting to start...', icon: <Loader2 className="w-12 h-12 animate-spin text-gray-400 mx-auto mb-3" /> }
+      case 'running':
+        return {
+          text: jobStatus.message || 'Scanning...',
+          icon: <Loader2 className="w-12 h-12 animate-spin text-sidebar-active mx-auto mb-3" />,
+        }
+      case 'complete':
+        return {
+          text: jobStatus.message || 'Scan complete',
+          icon: <CheckCircle className="w-12 h-12 text-risk-safe mx-auto mb-3" />,
+        }
+      case 'failed':
+        return {
+          text: jobStatus.message || 'Scan failed',
+          icon: <AlertCircle className="w-12 h-12 text-critical mx-auto mb-3" />,
+        }
+      default:
+        return { text: 'Unknown state', icon: <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" /> }
+    }
+  }
+
+  const statusDisplay = getStatusDisplay()
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => !scanning && onClose()}>
@@ -190,28 +230,33 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
           ) : (
             <div className="space-y-4">
               <div className="text-center">
-                <Loader2 className="w-12 h-12 animate-spin text-sidebar-active mx-auto mb-3" />
+                {statusDisplay.icon}
                 <p className="text-sm font-medium text-gray-900">
-                  {mode === 'all' ? 'Scanning all local images' : `Scanning ${imageName}`}
+                  {mode === 'all' && !jobStatus ? 'Scanning all local images' : mode === 'single' ? `Scanning ${imageName}` : ''}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {statusMessage || 'Waiting for results...'}
-                </p>
+                <p className="text-xs text-gray-500 mt-1">{statusDisplay.text}</p>
               </div>
-              <Progress value={progress} className="h-3" />
-              <p className="text-xs text-center text-gray-500">Polling for results... {progress}%</p>
+              <Progress value={getProgress()} className="h-3" />
+              {jobStatus && jobStatus.total_images && jobStatus.total_images > 0 && (
+                <p className="text-xs text-center text-gray-500">
+                  {jobStatus.scanned_images}/{jobStatus.total_images} images scanned
+                  {jobStatus.vulns_found > 0 && ` — ${jobStatus.vulns_found} vulnerabilities found`}
+                </p>
+              )}
               {scanId && (
                 <p className="text-xs text-center text-gray-400 font-mono">Scan ID: {scanId}</p>
               )}
-              <div className="flex justify-center pt-2">
-                <button
-                  type="button"
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  onClick={handleClose}
-                >
-                  Close
-                </button>
-              </div>
+              {jobStatus && (jobStatus.status === 'complete' || jobStatus.status === 'failed') && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm font-medium text-white bg-sidebar-active rounded-lg hover:bg-blue-600 transition-colors"
+                    onClick={handleClose}
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </form>
