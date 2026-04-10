@@ -13,6 +13,7 @@ import { ScanDialog } from '../components/common/ScanDialog'
 import { useDashboardSummary, useImages } from '../hooks/useQueries'
 import { formatDate, getRiskColor } from '../lib/utils'
 import { Container, ShieldAlert, Activity } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 
 // Empty state mock data
 const emptySummary = {
@@ -21,9 +22,17 @@ const emptySummary = {
 }
 
 export default function OverviewPage() {
+  const queryClient = useQueryClient()
   const { data: summary, isLoading } = useDashboardSummary()
   const { data: images } = useImages()
   const [showScanDialog, setShowScanDialog] = useState(false)
+
+  const handleScanComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+    queryClient.invalidateQueries({ queryKey: ['images'] })
+    queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] })
+    queryClient.invalidateQueries({ queryKey: ['scans'] })
+  }
 
   // Use real API data - fallback to empty state only if no data
   const s = summary || emptySummary
@@ -35,7 +44,7 @@ export default function OverviewPage() {
         <ScanButton onScan={() => setShowScanDialog(true)} scanning={false} />
       </TopBar>
 
-      <ScanDialog open={showScanDialog} onClose={() => setShowScanDialog(false)} onScanComplete={() => {}} />
+      <ScanDialog open={showScanDialog} onClose={() => setShowScanDialog(false)} onScanComplete={handleScanComplete} />
 
       {/* Data Source Indicator */}
       <div className="fixed bottom-4 left-4 z-50">

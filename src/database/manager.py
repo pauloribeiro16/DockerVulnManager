@@ -141,6 +141,33 @@ class DatabaseManager:
         finally:
             session.close()
 
+    def list_scans_for_image(self, image_name: str, image_tag: str, limit: int = 20) -> list[ScanResult]:
+        """List all scans for a specific image.
+
+        Args:
+            image_name: Image name
+            image_tag: Image tag
+            limit: Maximum number of results
+
+        Returns:
+            List of ScanResult objects ordered by timestamp desc
+        """
+        session = self.SessionLocal()
+        try:
+            records = (
+                session.query(ScanResultModel)
+                .filter(
+                    ScanResultModel.image_name == image_name,
+                    ScanResultModel.image_tag == image_tag,
+                )
+                .order_by(ScanResultModel.scan_timestamp.desc())
+                .limit(limit)
+                .all()
+            )
+            return [r.to_scan_result() for r in records]
+        finally:
+            session.close()
+
     def list_scans(self, limit: int = 20) -> list[dict]:
         """List recent scans.
 

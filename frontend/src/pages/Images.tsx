@@ -6,16 +6,26 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { ScanButton } from '../components/common/ScanButton'
+import { ScanDialog } from '../components/common/ScanDialog'
 import { EmptyState } from '../components/common/EmptyState'
 import { useImages } from '../hooks/useQueries'
 import { formatDate, getRiskColor } from '../lib/utils'
 import { sanitizeImageName } from '../lib/security'
 import { Eye, RefreshCw, Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function ImagesPage() {
+  const queryClient = useQueryClient()
   const { data, isLoading } = useImages()
   const navigate = useNavigate()
+  const [showScanDialog, setShowScanDialog] = useState(false)
   const [scanningImage, setScanningImage] = useState<string | null>(null)
+
+  const handleScanComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['images'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+    queryClient.invalidateQueries({ queryKey: ['scans'] })
+  }
 
   const handleView = (name: string, tag: string) => {
     const safeName = sanitizeImageName(name)
@@ -36,7 +46,7 @@ export default function ImagesPage() {
     return (
       <>
         <TopBar title="Docker Images">
-          <ScanButton onScan={() => {}} scanning={false} />
+          <ScanButton onScan={() => setShowScanDialog(true)} scanning={false} />
         </TopBar>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-sidebar-active" />
@@ -50,8 +60,10 @@ export default function ImagesPage() {
   return (
     <>
       <TopBar title="Docker Images">
-        <ScanButton onScan={() => {}} scanning={false} />
+        <ScanButton onScan={() => setShowScanDialog(true)} scanning={false} />
       </TopBar>
+
+      <ScanDialog open={showScanDialog} onClose={() => setShowScanDialog(false)} onScanComplete={handleScanComplete} />
 
       <div className="p-6">
         {images.length === 0 ? (

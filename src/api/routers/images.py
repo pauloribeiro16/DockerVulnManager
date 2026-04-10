@@ -37,27 +37,34 @@ def list_images(
         key = scan["image"]
         if key not in images:
             name, tag = (key.split(":") + ["latest"])[:2]
+            record = orch.db.get_scan(scan["id"])
+
+            critical = high = medium = low = 0
+            total_vulns = scan["vulns"]
+            if record:
+                critical = record.critical_count
+                high = record.high_count
+                medium = record.medium_count
+                low = record.low_count
+
+            status = "safe"
+            if critical > 0 or scan["risk_score"] >= 70:
+                status = "danger"
+            elif high > 2 or scan["risk_score"] >= 40:
+                status = "warning"
+
             images[key] = ImageHealthResponse(
                 name=name,
                 tag=tag,
                 last_scan=scan["timestamp"],
                 risk_score=scan["risk_score"],
-                total_vulns=scan["vulns"],
-                critical=0,
-                high=0,
-                medium=0,
-                low=0,
-                status="safe",
+                total_vulns=total_vulns,
+                critical=critical,
+                high=high,
+                medium=medium,
+                low=low,
+                status=status,
             )
-
-    # Calculate status from risk_score
-    for img in images.values():
-        if img.risk_score >= 70:
-            img.status = "danger"
-        elif img.risk_score >= 40:
-            img.status = "warning"
-        else:
-            img.status = "safe"
 
     return list(images.values())
 
@@ -91,4 +98,21 @@ def get_image_history(
     orch: ScannerOrchestrator = Depends(_get_orchestrator),
 ) -> list:
     """Get scan history for a specific image."""
-    return orch.db.list_scans(limit=20)
+    scan_results = orch.db.list_scans_for_image(name, tag, limit=20)
+    return [
+        {
+            "id": i,
+            "image_name": r.image_name,
+            "image_tag": r.image_tag,
+            "scan_timestamp": r.scan_timestamp.isoformat(),
+            "packages_scanned": r.packages_scanned,
+            "risk_score": r.risk_score,
+            "total_count": r.total_count,
+            "critical_count": r.critical_count,
+            "high_count": r.high_count,
+            "medium_count": r.medium_count,
+            "low_count": r.low_count,
+            "vulnerabilities": r.vulnerabilities,
+        }
+        for i, r in enumerate(scan_results, start=1)
+    ]

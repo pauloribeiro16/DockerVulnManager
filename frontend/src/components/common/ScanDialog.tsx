@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { X, Loader2, Layers } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Progress } from '../ui/progress'
+import { api } from '../../api/client'
 
 interface ScanDialogProps {
   open: boolean
@@ -18,55 +19,43 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
   const [scanning, setScanning] = useState(false)
   const [scanId, setScanId] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
+  const [statusMessage, setStatusMessage] = useState('')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   if (!open) return null
 
-  const doScan = async (image: string) => {
-    const response = await fetch('/api/v1/scans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image }),
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      return data.scan_id
-    }
-    return 'sim-' + Math.random().toString(36).substring(2, 8)
+  const handleModeSwitch = (newMode: ScanMode) => {
+    setMode(newMode)
+    setError('')
+    setImageName('')
   }
 
-  const doScanAll = async () => {
-    const response = await fetch('/api/v1/scans/scan-all', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      return data.scan_id
-    }
-    return 'sim-' + Math.random().toString(36).substring(2, 8)
-  }
-
-  const simulateProgress = (onDone: () => void) => {
-    setProgress(0)
+  const startPolling = () => {
+    let attempts = 0
+    const maxAttempts = 150 // 5 min at 2s interval
     const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 95) {
-          clearInterval(interval)
-          return 95
-        }
-        return prev + Math.random() * 15
-      })
-    }, 800)
+      attempts++
+      setProgress(prev => Math.min(prev + 1, 95))
 
-    setTimeout(() => {
-      clearInterval(interval)
-      setProgress(100)
-      setScanning(false)
-      onScanComplete()
-      onClose()
-    }, 4000)
+      api.scans.list(1, 1).then(scans => {
+        if (scans.length > 0) {
+          const latest = scans[0]
+          setStatusMessage(
+            `${latest.image_name}:${latest.image_tag} — ${latest.total_count} vulns found`
+          )
+        }
+      }).catch(() => {})
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval)
+        setStatusMessage('Scan still running in background. Results will appear when complete.')
+        setProgress(95)
+        setScanning(false)
+        onScanComplete()
+      }
+    }, 2000)
+
+    pollRef.current = interval
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,29 +68,36 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
 
     setError('')
     setScanning(true)
+    setProgress(0)
+    setStatusMessage('Scan queued...')
 
     try {
+      let sid: string
       if (mode === 'single') {
-        const sid = await doScan(imageName.trim())
-        setScanId(sid)
-        simulateProgress(() => {})
+        const resp = await api.scans.create(imageName.trim())
+        sid = resp.scan_id
       } else {
-        const sid = await doScanAll()
-        setScanId(sid)
-        simulateProgress(() => {})
+        const resp = await api.scans.scanAll()
+        sid = resp.scan_id
       }
-    } catch {
-      // Fallback to simulation
-      const sid = 'sim-' + Math.random().toString(36).substring(2, 8)
       setScanId(sid)
-      simulateProgress(() => {})
+      startPolling()
+    } catch (err: any) {
+      setError(err.message || 'Failed to start scan')
+      setScanning(false)
     }
   }
 
-  const handleModeSwitch = (newMode: ScanMode) => {
-    setMode(newMode)
-    setError('')
-    setImageName('')
+  const handleClose = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    setScanning(false)
+    setProgress(0)
+    setStatusMessage('')
+    onScanComplete()
+    onClose()
   }
 
   return (
@@ -197,13 +193,24 @@ export function ScanDialog({ open, onClose, onScanComplete }: ScanDialogProps) {
                 <p className="text-sm font-medium text-gray-900">
                   {mode === 'all' ? 'Scanning all local images' : `Scanning ${imageName}`}
                 </p>
-                <p className="text-xs text-gray-500">This may take a few moments...</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {statusMessage || 'Waiting for results...'}
+                </p>
               </div>
               <Progress value={progress} className="h-3" />
-              <p className="text-xs text-center text-gray-500">{Math.round(progress)}%</p>
+              <p className="text-xs text-center text-gray-500">Polling for results... {progress}%</p>
               {scanId && (
                 <p className="text-xs text-center text-gray-400 font-mono">Scan ID: {scanId}</p>
               )}
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={handleClose}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           )}
         </form>

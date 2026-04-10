@@ -1,6 +1,6 @@
 """FastAPI application - Main entry point for the API server."""
 
-import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,6 +15,15 @@ from src.utils.logger import setup_logging
 
 # Initialize logging
 setup_logging()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: initialize settings and DB on startup."""
+    settings.ensure_dirs()
+    from src.database.manager import db
+    db.initialize()
+    yield
 
 
 class SPAStaticFiles(StaticFiles):
@@ -34,6 +43,7 @@ app = FastAPI(
     title="DockerVulnManager API",
     description="Docker vulnerability management and security hardening API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware (for development)
@@ -63,14 +73,6 @@ def health_check():
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
     app.mount("/", SPAStaticFiles(directory=str(FRONTEND_DIST), html=True), name="spa")
-
-
-# Initialize database on startup
-@app.on_event("startup")
-def startup():
-    settings.ensure_dirs()
-    from src.database.manager import db
-    db.initialize()
 
 
 if __name__ == "__main__":

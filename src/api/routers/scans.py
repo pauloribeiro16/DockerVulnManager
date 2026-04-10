@@ -32,22 +32,38 @@ def list_scans(
     """List recent scans with pagination."""
     scans = orch.db.list_scans(limit=size * page)
     start = (page - 1) * size
-    return [
-        ScanResponse(
-            id=s["id"],
-            image_name=s["image"].split(":")[0],
-            image_tag=s["image"].split(":")[1] if ":" in s["image"] else "latest",
-            scan_timestamp=s["timestamp"],
-            packages_scanned=0,
-            risk_score=s["risk_score"],
-            total_count=s["vulns"],
-            critical_count=0,
-            high_count=0,
-            medium_count=0,
-            low_count=0,
-        )
-        for s in scans[start:start + size]
-    ]
+    result = []
+    for s in scans[start:start + size]:
+        record = orch.db.get_scan(s["id"])
+        if record:
+            result.append(ScanResponse(
+                id=s["id"],
+                image_name=record.image_name,
+                image_tag=record.image_tag,
+                scan_timestamp=s["timestamp"],
+                packages_scanned=record.packages_scanned,
+                risk_score=s["risk_score"],
+                total_count=record.total_count,
+                critical_count=record.critical_count,
+                high_count=record.high_count,
+                medium_count=record.medium_count,
+                low_count=record.low_count,
+            ))
+        else:
+            result.append(ScanResponse(
+                id=s["id"],
+                image_name=s["image"].split(":")[0],
+                image_tag=s["image"].split(":")[1] if ":" in s["image"] else "latest",
+                scan_timestamp=s["timestamp"],
+                packages_scanned=0,
+                risk_score=s["risk_score"],
+                total_count=s["vulns"],
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+            ))
+    return result
 
 
 @router.post("/", response_model=ScanTriggerResponse)

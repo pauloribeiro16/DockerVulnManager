@@ -2,6 +2,23 @@
 
 All notable changes to DockerVulnManager.
 
+### 07b6e38 - 2026-04-10
+
+**fix: resolve all critical API bugs + improve scan UX**
+
+Files changed (8):
+- frontend/src/components/common/ScanDialog.tsx
+- frontend/src/pages/Images.tsx
+- frontend/src/pages/Overview.tsx
+- src/api/main.py
+- src/api/routers/dashboard.py
+- src/api/routers/images.py
+- src/api/routers/scans.py
+- src/database/manager.py
+---
+
+
+
 ### 6561417 - 2026-04-09
 
 **feat: add scan-all option to New Scan dialog**
