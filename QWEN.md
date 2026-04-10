@@ -198,6 +198,69 @@ SECURITY_MIN_SEVERITY=MEDIUM
 - **Logging**: Loguru via `src.utils.logger`
 - **Pre-commit hooks**: Located in `hooks/` — checks for credentials, file types, file sizes, encoding, YAML/JSON validation, etc.
 - **No implementation plan files** should be committed to the repository (e.g., `IMPLEMENTATION_PLAN.md`)
+- **Virtual environment**: Use `/home/epmq/Desktop/Projects/shared-venv` — no local `.venv`
+
+---
+
+## Evaluation Harness — Independent Verification
+
+Two independent agents verify every implementation change **before commit**. They operate with **zero implementation context** — they read code, run tests, and produce structured reports.
+
+### Architecture
+
+```
+Implement feature → pytest (local) → [code-verifier] ─┐
+                                        (parallel)       → Review reports → Commit or Fix
+                                    [integration-verifier] ┘
+```
+
+### Agent 1: Code Verifier
+
+**Purpose**: Verify backend correctness, test health, and code quality.  
+**Checks**: pytest results, Python imports, FastAPI lifespan (not deprecated `on_event`), DB method consistency, unused imports.  
+**Output**: `.eval/code-report.md`
+
+### Agent 2: Integration Verifier
+
+**Purpose**: Verify frontend ↔ backend coherence, no mock data, proper API wiring.  
+**Checks**: mock data absence, ScanDialog uses `api.client` (not `fetch`), hooks use API, `onScanComplete` wired to `queryClient.invalidateQueries`, TypeScript/backend type alignment.  
+**Output**: `.eval/integration-report.md`
+
+### Workflow (mandatory before every commit)
+
+1. Implement the feature/fix
+2. Run `pytest` locally — must pass before launching agents
+3. Launch **both agents in parallel** via `agent` tool (see `AGENT_EVALUATORS.md` for prompts)
+4. Read both `.eval/*.md` reports
+5. **If any report is FAIL** → fix issues → re-run agents
+6. **Only commit when both reports are PASS**
+
+### How to invoke agents
+
+```python
+# Code Verifier
+agent(
+    subagent_type="general-purpose",
+    description="Code verifier agent",
+    prompt="<prompt from AGENT_EVALUATORS.md for Code Verifier>"
+)
+
+# Integration Verifier
+agent(
+    subagent_type="general-purpose", 
+    description="Integration verifier agent",
+    prompt="<prompt from AGENT_EVALUATORS.md for Integration Verifier>"
+)
+```
+
+### Design principles (from Anthropic engineering articles)
+- **Separation from generator**: Eliminates self-praise bias — who writes ≠ who verifies
+- **Criteria-driven**: Hard pass/fail thresholds, not subjective judgment
+- **File-based communication**: Agents write `.eval/*.md` artifacts — no in-memory context passing
+- **Context reset**: Each agent starts fresh with no implementation context
+- **Verification gate**: Only flip to PASS after empirical validation (tests run, grep confirms, etc.)
+
+See `AGENT_EVALUATORS.md` for full agent prompts and check specifications.
 
 ---
 
@@ -209,11 +272,13 @@ SECURITY_MIN_SEVERITY=MEDIUM
 - ✅ **Report generation** — JSON, CSV, HTML, Markdown
 - ✅ **Dockerfile analysis** — 9 security rules
 - ✅ **Container runtime audit** — 10 security checks
-- ✅ **Frontend scaffold** — React 19 + TypeScript + Vite + TailwindCSS, 6 pages with mock data
-- 🟡 **Backend API (FastAPI)** — In development (endpoints planned in `DASHBOARD_PLAN.md`)
-- 🟡 **Frontend-backend integration** — Currently using mock data; wiring to real API pending
-- 🔴 **Tests** — 33 Python tests passing; frontend tests pending
-- 🔴 **Production Dockerfile** — Multi-stage Dockerfile exists but needs verification
+- ✅ **Frontend scaffold** — React 19 + TypeScript + Vite + TailwindCSS, 6 pages wired to API
+- ✅ **Backend API (FastAPI)** — All endpoints implemented with real data
+- ✅ **Frontend-backend integration** — No mock data, all pages use real API
+- ✅ **Tests** — 45 passing, 0 warnings
+- ✅ **Evaluation harness** — Two independent verifier agents defined
+- 🟡 **Scan progress** — Polling-based (WebSocket planned)
+- 🟡 **Production Dockerfile** — Multi-stage exists but needs verification
 
 ---
 
@@ -230,3 +295,5 @@ SECURITY_MIN_SEVERITY=MEDIUM
 | `DASHBOARD_PLAN.md` | Full implementation plan for the web dashboard |
 | `VULN_REMEDIATION.md` | Vulnerability remediation guidance |
 | `CHANGELOG.md` | Version history |
+| `AGENT_EVALUATORS.md` | **Evaluation harness** — prompts and criteria for independent verifier agents |
+| `.eval/` | **Not committed** — evaluation reports generated before each commit |

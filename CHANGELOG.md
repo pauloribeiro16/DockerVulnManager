@@ -2,6 +2,19 @@
 
 All notable changes to DockerVulnManager.
 
+### c0d60be - 2026-04-10
+
+**feat: add evaluation harness with two independent verifier agents**
+
+Files changed (4):
+- .gitignore
+- AGENT_EVALUATORS.md
+- QWEN.md
+- frontend/src/types/index.ts
+---
+
+
+
 ### 07b6e38 - 2026-04-10
 
 **fix: resolve all critical API bugs + improve scan UX**

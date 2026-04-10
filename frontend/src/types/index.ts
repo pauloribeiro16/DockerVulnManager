@@ -14,7 +14,7 @@ export interface ScanResult {
   image_name: string
   image_tag: string
   scan_timestamp: string
-  scanner_version: string
+  scanner_version?: string
   packages_scanned: number
   risk_score: number
   vulnerabilities: Vulnerability[]
@@ -45,6 +45,7 @@ export interface DashboardSummary {
   high: number
   medium: number
   low: number
+  info: number
   risk_score: number
   last_scan: string | null
   trend: TrendPoint[]
